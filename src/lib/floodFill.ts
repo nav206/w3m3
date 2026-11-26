@@ -1,4 +1,4 @@
-/** Scanline flood fill on ImageData. Mutates in place. */
+/** Scanline flood fill on ImageData. Mutates in place. Returns whether any pixels changed. */
 export function floodFill(
   imageData: ImageData,
   startX: number,
@@ -8,11 +8,11 @@ export function floodFill(
   fillB: number,
   fillA = 255,
   tolerance = 32,
-) {
+): boolean {
   const { width, height, data } = imageData
   const x0 = Math.floor(startX)
   const y0 = Math.floor(startY)
-  if (x0 < 0 || y0 < 0 || x0 >= width || y0 >= height) return
+  if (x0 < 0 || y0 < 0 || x0 >= width || y0 >= height) return false
 
   const idx0 = (y0 * width + x0) * 4
   const tr = data[idx0]
@@ -20,7 +20,7 @@ export function floodFill(
   const tb = data[idx0 + 2]
   const ta = data[idx0 + 3]
 
-  if (colorsMatch(tr, tg, tb, ta, fillR, fillG, fillB, fillA, 0)) return
+  if (colorsMatch(tr, tg, tb, ta, fillR, fillG, fillB, fillA, 0)) return false
 
   const match = (i: number) =>
     colorsMatch(data[i], data[i + 1], data[i + 2], data[i + 3], tr, tg, tb, ta, tolerance)
@@ -50,6 +50,7 @@ export function floodFill(
       }
     }
   }
+  return true
 }
 
 function colorsMatch(

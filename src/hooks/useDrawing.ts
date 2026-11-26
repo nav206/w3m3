@@ -14,6 +14,14 @@ type Options = {
 
 const MAX_HISTORY = 40
 
+function imageDataHasMarks(image: ImageData): boolean {
+  const { data } = image
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] !== 0) return true
+  }
+  return false
+}
+
 export function useDrawing(options: Options) {
   const { tool, color, size, onAnnounce } = options
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -98,6 +106,13 @@ export function useDrawing(options: Options) {
       // Keep CSS size via stylesheet (width/height 100%); don't fight layout.
       sizeRef.current = { w, h, dpr }
 
+      // ImageData undo snapshots are tied to the previous bitmap size; discard them
+      // so undo/redo cannot putImageData mismatched dimensions after a resize.
+      historyRef.current = []
+      futureRef.current = []
+      snapshotRef.current = null
+      syncFlags()
+
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (!ctx) return
       ctxRef.current = ctx
@@ -117,7 +132,7 @@ export function useDrawing(options: Options) {
         img.src = backup
       }
     },
-    [],
+    [syncFlags],
   )
 
   useEffect(() => {
@@ -195,11 +210,12 @@ export function useDrawing(options: Options) {
     const t = toolRef.current
 
     if (t === 'fill') {
-      pushHistory()
       const { dpr } = sizeRef.current
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const [r, g, b, a] = hexToRgba(colorRef.current)
-      floodFill(img, p.x * dpr, p.y * dpr, r, g, b, a)
+      const filled = floodFill(img, p.x * dpr, p.y * dpr, r, g, b, a)
+      if (!filled) return
+      pushHistory()
       ctx.putImageData(img, 0, 0)
       setHasMarks(true)
       announceRef.current?.(`Filled with ${colorRef.current}`)
@@ -274,6 +290,7 @@ export function useDrawing(options: Options) {
     ctx.putImageData(prev, 0, 0)
     const { dpr } = sizeRef.current
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    setHasMarks(imageDataHasMarks(prev))
     syncFlags()
     announceRef.current?.('Undo')
   }, [getCtx, syncFlags])
@@ -288,6 +305,7 @@ export function useDrawing(options: Options) {
     ctx.putImageData(next, 0, 0)
     const { dpr } = sizeRef.current
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    setHasMarks(imageDataHasMarks(next))
     syncFlags()
     announceRef.current?.('Redo')
   }, [getCtx, syncFlags])
