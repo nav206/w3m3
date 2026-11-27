@@ -24,8 +24,25 @@ const ALL_TOOLS = [...PRIMARY_TOOLS, ...SHAPE_TOOLS]
 
 type Words = [string, string, string]
 
+type SubmitMeta = {
+  gender: string
+  age: string
+  location: string
+  teacherCode: string
+}
+
+const GENDER_OPTIONS = ['Female', 'Male', 'Non-binary', 'Prefer not to say', 'Other'] as const
+
 function emptyWords(): Words {
   return ['', '', '']
+}
+
+function RequiredMark() {
+  return (
+    <span className="req-mark" aria-hidden="true">
+      *
+    </span>
+  )
 }
 
 function filledCount(words: Words) {
@@ -142,13 +159,15 @@ export default function App() {
   const [backWords, setBackWords] = useState<Words>(emptyWords)
   const [status, setStatus] = useState('Pen selected.')
   const [nudgeWords, setNudgeWords] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [submitStep, setSubmitStep] = useState<'edit' | 'details' | 'done'>('edit')
+  const [submitMeta, setSubmitMeta] = useState<SubmitMeta | null>(null)
   const [shapesOpen, setShapesOpen] = useState(false)
   const shapesMenuRef = useRef<HTMLDivElement>(null)
 
   const announce = useCallback((msg: string) => setStatus(msg), [])
   const drawing = useDrawing({ tool, color, size, onAnnounce: announce })
   const shapeActive = isMenuShapeTool(tool)
+  const locked = submitStep !== 'edit'
 
   const frontReady = filledCount(frontWords) === 3
   const backReady = filledCount(backWords) === 3
@@ -178,9 +197,9 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (submitted) return
+      if (locked) return
       const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
@@ -214,7 +233,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [announce, drawing, submitted])
+  }, [announce, drawing, locked])
 
   const submitHint = useMemo(() => {
     if (canSubmit) return 'Ready to submit.'
@@ -236,17 +255,18 @@ export default function App() {
     setFrontWords(emptyWords())
     setBackWords(emptyWords())
     setNudgeWords(false)
-    setSubmitted(false)
+    setSubmitStep('edit')
+    setSubmitMeta(null)
     setTool('pen')
     setColor(PALETTE[0].hex)
     setSize(SIZE_PRESETS[1].value)
     announce('New drawing started')
   }, [announce, backWords, drawing, frontWords])
 
-  // Keep the canvas mounted when "submitted" so Keep editing does not wipe pixels.
+  // Keep the canvas mounted across overlays so Keep editing does not wipe pixels.
   return (
     <main className="app">
-      <div className={submitted ? 'app-shell is-dimmed' : 'app-shell'} aria-hidden={submitted}>
+      <div className={locked ? 'app-shell is-dimmed' : 'app-shell'} aria-hidden={locked}>
         <header className="chrome">
           <div className="brand">
             <span className="brand__name">w3m3</span>
@@ -263,7 +283,7 @@ export default function App() {
                   aria-pressed={tool === t.id}
                   aria-label={`${t.label} (${t.shortcut})`}
                   title={`${t.label} (${t.shortcut})`}
-                  disabled={submitted}
+                  disabled={locked}
                   onClick={() => {
                     setTool(t.id)
                     setShapesOpen(false)
@@ -284,7 +304,7 @@ export default function App() {
                   aria-haspopup="menu"
                   aria-label="Shapes"
                   title="Shapes"
-                  disabled={submitted}
+                  disabled={locked}
                   onClick={() => setShapesOpen((open) => !open)}
                 >
                   {shapeActive ? <ToolIcon tool={tool} /> : <ShapesMenuIcon />}
@@ -325,7 +345,7 @@ export default function App() {
                   aria-pressed={size === s.value}
                   aria-label={`Size ${s.label}`}
                   title={`Size ${s.label}`}
-                  disabled={submitted}
+                  disabled={locked}
                   onClick={() => {
                     setSize(s.value)
                     announce(`Size ${s.label}`)
@@ -340,7 +360,7 @@ export default function App() {
               <button
                 type="button"
                 className="tool-btn"
-                disabled={submitted || !drawing.canUndo}
+                disabled={locked || !drawing.canUndo}
                 onClick={drawing.undo}
                 aria-label="Undo"
                 title="Undo (Ctrl+Z)"
@@ -350,7 +370,7 @@ export default function App() {
               <button
                 type="button"
                 className="tool-btn"
-                disabled={submitted || !drawing.canRedo}
+                disabled={locked || !drawing.canRedo}
                 onClick={drawing.redo}
                 aria-label="Redo"
                 title="Redo (Ctrl+Y)"
@@ -360,7 +380,7 @@ export default function App() {
               <button
                 type="button"
                 className="tool-btn"
-                disabled={submitted}
+                disabled={locked}
                 onClick={drawing.clear}
                 aria-label="Clear canvas"
               >
@@ -369,7 +389,7 @@ export default function App() {
               <button
                 type="button"
                 className="tool-btn"
-                disabled={submitted}
+                disabled={locked}
                 onClick={startNewDrawing}
                 aria-label="New drawing"
                 title="Start a new mask"
@@ -389,7 +409,7 @@ export default function App() {
                     aria-label={swatch.name}
                     aria-pressed={color === swatch.hex}
                     title={swatch.name}
-                    disabled={submitted}
+                    disabled={locked}
                     onClick={() => {
                       setColor(swatch.hex)
                       if (tool === 'eraser') setTool('pen')
@@ -405,11 +425,12 @@ export default function App() {
             <button
               type="button"
               className="submit-btn"
-              disabled={!canSubmit || submitted}
+              disabled={!canSubmit || locked}
               onClick={() => {
                 if (!canSubmit) return
-                setSubmitted(true)
-                announce('Mask submitted locally.')
+                setShapesOpen(false)
+                setSubmitStep('details')
+                announce('Add a few details to submit your mask')
               }}
               aria-describedby="submit-hint"
             >
@@ -436,10 +457,10 @@ export default function App() {
                   ref={drawing.canvasRef}
                   className="draw-canvas"
                   aria-label="Front of mask drawing area"
-                  onPointerDown={submitted ? undefined : drawing.onPointerDown}
-                  onPointerMove={submitted ? undefined : drawing.onPointerMove}
-                  onPointerUp={submitted ? undefined : drawing.onPointerUp}
-                  onPointerCancel={submitted ? undefined : drawing.onPointerUp}
+                  onPointerDown={locked ? undefined : drawing.onPointerDown}
+                  onPointerMove={locked ? undefined : drawing.onPointerMove}
+                  onPointerUp={locked ? undefined : drawing.onPointerUp}
+                  onPointerCancel={locked ? undefined : drawing.onPointerUp}
                 />
               </div>
 
@@ -449,7 +470,7 @@ export default function App() {
                 prompt="Qualities you gladly let others see"
                 words={frontWords}
                 nudge={nudgeWords && !frontReady}
-                disabled={submitted}
+                disabled={locked}
                 onChange={setFrontWords}
               />
             </article>
@@ -468,7 +489,7 @@ export default function App() {
                 prompt="What you usually carry but don’t let others see"
                 words={backWords}
                 nudge={nudgeWords && frontReady && !backReady}
-                disabled={submitted}
+                disabled={locked}
                 solo
                 onChange={setBackWords}
               />
@@ -477,7 +498,22 @@ export default function App() {
         </section>
       </div>
 
-      {submitted && (
+      {submitStep === 'details' && (
+        <SubmitDetailsDialog
+          initial={submitMeta}
+          onCancel={() => {
+            setSubmitStep('edit')
+            announce('Submit cancelled')
+          }}
+          onSubmit={(meta) => {
+            setSubmitMeta(meta)
+            setSubmitStep('done')
+            announce('Mask submitted locally.')
+          }}
+        />
+      )}
+
+      {submitStep === 'done' && (
         <div className="done-overlay" role="dialog" aria-modal="true" aria-labelledby="done-title">
           <div className="done" role="status">
             <h2 id="done-title">Mask ready</h2>
@@ -487,9 +523,15 @@ export default function App() {
             <p>
               <strong>Back:</strong> {backWords.map((w) => w.trim()).join(' · ')}
             </p>
+            {submitMeta && (
+              <p className="done-meta">
+                {submitMeta.gender} · age {submitMeta.age} · {submitMeta.location}
+                {submitMeta.teacherCode ? ` · code ${submitMeta.teacherCode}` : ''}
+              </p>
+            )}
             <p>Your drawing is still on the card behind this. Keep editing or start fresh.</p>
             <div className="done-actions">
-              <button type="button" className="submit-btn" onClick={() => setSubmitted(false)}>
+              <button type="button" className="submit-btn" onClick={() => setSubmitStep('edit')}>
                 Keep editing
               </button>
               <button type="button" className="ghost-btn" onClick={startNewDrawing}>
@@ -504,6 +546,132 @@ export default function App() {
         {status}
       </div>
     </main>
+  )
+}
+
+function SubmitDetailsDialog({
+  initial,
+  onCancel,
+  onSubmit,
+}: {
+  initial: SubmitMeta | null
+  onCancel: () => void
+  onSubmit: (meta: SubmitMeta) => void
+}) {
+  const [gender, setGender] = useState(initial?.gender ?? '')
+  const [age, setAge] = useState(initial?.age ?? '')
+  const [location, setLocation] = useState(initial?.location ?? '')
+  const [teacherCode, setTeacherCode] = useState(initial?.teacherCode ?? '')
+  const [attempted, setAttempted] = useState(false)
+
+  const ageOk = /^\d{1,3}$/.test(age.trim()) && Number(age.trim()) > 0 && Number(age.trim()) < 130
+  const ready = Boolean(gender) && ageOk && location.trim().length > 0
+
+  return (
+    <div className="done-overlay" role="dialog" aria-modal="true" aria-labelledby="submit-details-title">
+      <form
+        className="submit-details"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setAttempted(true)
+          if (!ready) return
+          onSubmit({
+            gender,
+            age: age.trim(),
+            location: location.trim(),
+            teacherCode: teacherCode.trim(),
+          })
+        }}
+      >
+        <h2 id="submit-details-title">Please fill these to submit your mask.</h2>
+
+        <div className="submit-details__row submit-details__row--split">
+          <label className="field">
+            <span className="field__label">
+              Gender
+              <RequiredMark />
+            </span>
+            <select
+              className="field__control"
+              value={gender}
+              required
+              aria-invalid={attempted && !gender}
+              onChange={(e) => setGender(e.target.value)}
+            >
+              <option value="" disabled>
+                Select
+              </option>
+              {GENDER_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span className="field__label">
+              Age
+              <RequiredMark />
+            </span>
+            <input
+              className="field__control"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="Age"
+              value={age}
+              required
+              aria-invalid={attempted && !ageOk}
+              onChange={(e) => setAge(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+            />
+          </label>
+        </div>
+
+        <label className="field">
+          <span className="field__label">
+            City, State, Region, Or Country
+            <RequiredMark />
+          </span>
+          <input
+            className="field__control"
+            placeholder="City, State, Region, or Country"
+            value={location}
+            required
+            aria-invalid={attempted && !location.trim()}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+        </label>
+
+        <label className="field">
+          <span className="field__label">Teacher Code (Optional)</span>
+          <input
+            className="field__control"
+            value={teacherCode}
+            autoComplete="off"
+            onChange={(e) => setTeacherCode(e.target.value)}
+          />
+        </label>
+
+        {attempted && !ready && (
+          <p className="submit-details__error" role="alert">
+            Fill in the required fields marked with{' '}
+            <span className="req-mark" aria-hidden="true">
+              *
+            </span>
+            .
+          </p>
+        )}
+
+        <div className="submit-details__actions">
+          <button type="submit" className="submit-details__submit">
+            Submit mask
+          </button>
+          <button type="button" className="submit-details__cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
 
