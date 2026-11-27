@@ -144,12 +144,18 @@ export function useDrawing(options: Options) {
       raf = requestAnimationFrame(() => resizeToDisplay(false))
     }
     window.addEventListener('resize', schedule)
+    // Mobile browser chrome / on-screen keyboard changes layout without a window resize.
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', schedule)
+    vv?.addEventListener('scroll', schedule)
     const parent = canvasRef.current?.parentElement
     const ro =
       parent && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null
     if (parent && ro) ro.observe(parent)
     return () => {
       window.removeEventListener('resize', schedule)
+      vv?.removeEventListener('resize', schedule)
+      vv?.removeEventListener('scroll', schedule)
       cancelAnimationFrame(raf)
       ro?.disconnect()
     }

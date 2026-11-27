@@ -14,6 +14,13 @@ const TOOLS: { id: Tool; label: string; shortcut: string }[] = [
 ]
 
 type Words = [string, string, string]
+type Stage = 'draw' | 'front' | 'back'
+
+const STAGES: { id: Stage; label: string }[] = [
+  { id: 'draw', label: 'Draw' },
+  { id: 'front', label: 'Front' },
+  { id: 'back', label: 'Back' },
+]
 
 function emptyWords(): Words {
   return ['', '', '']
@@ -82,6 +89,7 @@ export default function App() {
   const [status, setStatus] = useState('Pen selected.')
   const [nudgeWords, setNudgeWords] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [stage, setStage] = useState<Stage>('draw')
 
   const announce = useCallback((msg: string) => setStatus(msg), [])
   const drawing = useDrawing({ tool, color, size, onAnnounce: announce })
@@ -125,6 +133,7 @@ export default function App() {
       }
       if (map[key]) {
         setTool(map[key])
+        setStage('draw')
         announce(`${TOOLS.find((t) => t.id === map[key])?.label} selected`)
       }
     }
@@ -153,171 +162,187 @@ export default function App() {
     setBackWords(emptyWords())
     setNudgeWords(false)
     setSubmitted(false)
+    setStage('draw')
     setTool('pen')
     setColor(PALETTE[0].hex)
     setSize(SIZE_PRESETS[1].value)
     announce('New drawing started')
   }, [announce, backWords, drawing, frontWords])
 
-  // Keep the canvas mounted when "submitted" so Keep editing does not wipe pixels.
+  const goNext = () => {
+    if (stage === 'draw') {
+      setStage('front')
+      announce('Front of the mask — add three words')
+      return
+    }
+    if (stage === 'front') {
+      setStage('back')
+      announce('Back of the mask — add three words')
+      return
+    }
+    if (!canSubmit) {
+      announce(submitHint)
+      return
+    }
+    setSubmitted(true)
+    announce('Mask submitted locally.')
+  }
+
+  const nextLabel =
+    stage === 'draw' ? 'Next: Front' : stage === 'front' ? 'Next: Back' : canSubmit ? 'Submit mask' : 'Need words'
+
+  // Keep the canvas mounted across stages so drawing is never wiped.
   return (
     <main className="app">
       <div className={submitted ? 'app-shell is-dimmed' : 'app-shell'} aria-hidden={submitted}>
-        <header className="chrome">
+        <header className="topbar">
           <div className="brand">
             <span className="brand__name">w3m3</span>
             <span className="brand__sub">#MillionMaskMovement</span>
           </div>
-
-          <div className="toolbar" role="toolbar" aria-label="Drawing tools">
-            <div className="tool-group" role="group" aria-label="Tools">
-              {TOOLS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className="tool-btn"
-                  aria-pressed={tool === t.id}
-                  aria-label={`${t.label} (${t.shortcut})`}
-                  title={`${t.label} (${t.shortcut})`}
-                  disabled={submitted}
-                  onClick={() => {
-                    setTool(t.id)
-                    announce(`${t.label} selected`)
-                  }}
-                >
-                  <ToolIcon tool={t.id} />
-                  <span className="sr-only">{t.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="tool-group" role="group" aria-label="Brush size">
-              {SIZE_PRESETS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="tool-btn"
-                  aria-pressed={size === s.value}
-                  aria-label={`Size ${s.label}`}
-                  title={`Size ${s.label}`}
-                  disabled={submitted}
-                  onClick={() => {
-                    setSize(s.value)
-                    announce(`Size ${s.label}`)
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="tool-group" role="group" aria-label="History">
-              <button
-                type="button"
-                className="tool-btn"
-                disabled={submitted || !drawing.canUndo}
-                onClick={drawing.undo}
-                aria-label="Undo"
-                title="Undo (Ctrl+Z)"
-              >
-                Undo
-              </button>
-              <button
-                type="button"
-                className="tool-btn"
-                disabled={submitted || !drawing.canRedo}
-                onClick={drawing.redo}
-                aria-label="Redo"
-                title="Redo (Ctrl+Y)"
-              >
-                Redo
-              </button>
-              <button
-                type="button"
-                className="tool-btn"
-                disabled={submitted}
-                onClick={drawing.clear}
-                aria-label="Clear canvas"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                className="tool-btn"
-                disabled={submitted}
-                onClick={startNewDrawing}
-                aria-label="New drawing"
-                title="Start a new mask"
-              >
-                New
-              </button>
-            </div>
-
-            <div className="tool-group" role="group" aria-label="Colors">
-              <div className="swatches">
-                {PALETTE.map((swatch) => (
-                  <button
-                    key={swatch.id}
-                    type="button"
-                    className={`swatch${swatch.id === 'white' ? ' swatch--light' : ''}`}
-                    style={{ background: swatch.hex }}
-                    aria-label={swatch.name}
-                    aria-pressed={color === swatch.hex}
-                    title={swatch.name}
-                    disabled={submitted}
-                    onClick={() => {
-                      setColor(swatch.hex)
-                      if (tool === 'eraser') setTool('pen')
-                      announce(`${swatch.name} selected`)
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="chrome-actions">
-            <button
-              type="button"
-              className="submit-btn"
-              disabled={!canSubmit || submitted}
-              onClick={() => {
-                if (!canSubmit) return
-                setSubmitted(true)
-                announce('Mask submitted locally.')
-              }}
-              aria-describedby="submit-hint"
-            >
-              Submit mask
-            </button>
-            <p id="submit-hint" className="submit-hint">
-              {submitHint}
-            </p>
-          </div>
+          <p className="stage-caption" aria-live="polite">
+            {stage === 'draw' && 'Draw the front of your mask'}
+            {stage === 'front' && '3 words you show'}
+            {stage === 'back' && '3 words you usually hide'}
+          </p>
         </header>
 
-        <section className="workspace" aria-label="Mask card">
-          <div className="mask-card">
-            <article className="face face--front" aria-labelledby="front-face-title">
-              <header className="face-header">
-                <p className="card-tab__kicker" id="front-face-title">
-                  Front of the mask
-                </p>
-                <p className="card-tab__meta">Drawings + words</p>
-              </header>
-
-              <div className="canvas-area">
-                <canvas
-                  ref={drawing.canvasRef}
-                  className="draw-canvas"
-                  aria-label="Front of mask drawing area"
-                  onPointerDown={submitted ? undefined : drawing.onPointerDown}
-                  onPointerMove={submitted ? undefined : drawing.onPointerMove}
-                  onPointerUp={submitted ? undefined : drawing.onPointerUp}
-                  onPointerCancel={submitted ? undefined : drawing.onPointerUp}
-                />
+        <div className="panels">
+          <section
+            className={`panel panel--draw${stage === 'draw' ? ' is-active' : ''}`}
+            aria-hidden={stage !== 'draw'}
+            aria-label="Mask drawing"
+          >
+            <aside className="tool-rail" aria-label="Drawing tools">
+              <div className="tool-group" role="group" aria-label="Tools">
+                {TOOLS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="tool-btn"
+                    aria-pressed={tool === t.id}
+                    aria-label={`${t.label} (${t.shortcut})`}
+                    title={`${t.label} (${t.shortcut})`}
+                    disabled={submitted}
+                    onClick={() => {
+                      setTool(t.id)
+                      announce(`${t.label} selected`)
+                    }}
+                  >
+                    <ToolIcon tool={t.id} />
+                    <span className="tool-btn__label">{t.label}</span>
+                  </button>
+                ))}
               </div>
 
+              <div className="tool-group" role="group" aria-label="Brush size">
+                {SIZE_PRESETS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="tool-btn tool-btn--size"
+                    aria-pressed={size === s.value}
+                    aria-label={`Size ${s.label}`}
+                    title={`Size ${s.label}`}
+                    disabled={submitted}
+                    onClick={() => {
+                      setSize(s.value)
+                      announce(`Size ${s.label}`)
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="tool-group" role="group" aria-label="History">
+                <button
+                  type="button"
+                  className="tool-btn"
+                  disabled={submitted || !drawing.canUndo}
+                  onClick={drawing.undo}
+                  aria-label="Undo"
+                  title="Undo (Ctrl+Z)"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  className="tool-btn"
+                  disabled={submitted || !drawing.canRedo}
+                  onClick={drawing.redo}
+                  aria-label="Redo"
+                  title="Redo (Ctrl+Y)"
+                >
+                  Redo
+                </button>
+                <button
+                  type="button"
+                  className="tool-btn"
+                  disabled={submitted}
+                  onClick={drawing.clear}
+                  aria-label="Clear canvas"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="tool-btn"
+                  disabled={submitted}
+                  onClick={startNewDrawing}
+                  aria-label="New drawing"
+                  title="Start a new mask"
+                >
+                  New
+                </button>
+              </div>
+
+              <div className="tool-group tool-group--swatches" role="group" aria-label="Colors">
+                <div className="swatches">
+                  {PALETTE.map((swatch) => (
+                    <button
+                      key={swatch.id}
+                      type="button"
+                      className={`swatch${swatch.id === 'white' ? ' swatch--light' : ''}`}
+                      style={{ background: swatch.hex }}
+                      aria-label={swatch.name}
+                      aria-pressed={color === swatch.hex}
+                      title={swatch.name}
+                      disabled={submitted}
+                      onClick={() => {
+                        setColor(swatch.hex)
+                        if (tool === 'eraser') setTool('pen')
+                        announce(`${swatch.name} selected`)
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <div className="canvas-area">
+              <canvas
+                ref={drawing.canvasRef}
+                className="draw-canvas"
+                aria-label="Front of mask drawing area"
+                onPointerDown={submitted || stage !== 'draw' ? undefined : drawing.onPointerDown}
+                onPointerMove={submitted || stage !== 'draw' ? undefined : drawing.onPointerMove}
+                onPointerUp={submitted || stage !== 'draw' ? undefined : drawing.onPointerUp}
+                onPointerCancel={submitted || stage !== 'draw' ? undefined : drawing.onPointerUp}
+              />
+            </div>
+          </section>
+
+          <section
+            className={`panel panel--words${stage === 'front' ? ' is-active' : ''}`}
+            aria-hidden={stage !== 'front'}
+            aria-label="Front of the mask"
+          >
+            <div className="words-card">
+              <header className="face-header">
+                <p className="card-tab__kicker">Front of the mask</p>
+                <p className="card-tab__meta">Words you gladly let others see</p>
+              </header>
               <FaceWords
                 id="front"
                 tag="Front"
@@ -325,18 +350,22 @@ export default function App() {
                 words={frontWords}
                 nudge={nudgeWords && !frontReady}
                 disabled={submitted}
+                solo
                 onChange={setFrontWords}
               />
-            </article>
+            </div>
+          </section>
 
-            <article className="face face--back" aria-labelledby="back-face-title">
+          <section
+            className={`panel panel--words${stage === 'back' ? ' is-active' : ''}`}
+            aria-hidden={stage !== 'back'}
+            aria-label="Back of the mask"
+          >
+            <div className="words-card">
               <header className="face-header">
-                <p className="card-tab__kicker" id="back-face-title">
-                  Back of the mask
-                </p>
-                <p className="card-tab__meta">Words only</p>
+                <p className="card-tab__kicker">Back of the mask</p>
+                <p className="card-tab__meta">What you usually carry but don’t let others see</p>
               </header>
-
               <FaceWords
                 id="back"
                 tag="Back"
@@ -347,9 +376,45 @@ export default function App() {
                 solo
                 onChange={setBackWords}
               />
-            </article>
+            </div>
+          </section>
+        </div>
+
+        <nav className="stage-nav" aria-label="Mask steps">
+          <div className="stage-tabs" role="tablist" aria-label="Steps">
+            {STAGES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                className="stage-tab"
+                aria-selected={stage === s.id}
+                disabled={submitted}
+                onClick={() => {
+                  setStage(s.id)
+                  announce(`${s.label} step`)
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
-        </section>
+
+          <div className="stage-actions">
+            <p className="submit-hint" id="submit-hint">
+              {stage === 'back' ? submitHint : drawing.hasMarks ? 'Drawing in progress' : 'Sketch first, then add words'}
+            </p>
+            <button
+              type="button"
+              className="submit-btn"
+              disabled={submitted || (stage === 'back' && !canSubmit)}
+              aria-describedby="submit-hint"
+              onClick={goNext}
+            >
+              {nextLabel}
+            </button>
+          </div>
+        </nav>
       </div>
 
       {submitted && (
@@ -362,9 +427,16 @@ export default function App() {
             <p>
               <strong>Back:</strong> {backWords.map((w) => w.trim()).join(' · ')}
             </p>
-            <p>Your drawing is still on the card behind this. Keep editing or start fresh.</p>
+            <p>Your drawing is still saved behind this. Keep editing or start fresh.</p>
             <div className="done-actions">
-              <button type="button" className="submit-btn" onClick={() => setSubmitted(false)}>
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={() => {
+                  setSubmitted(false)
+                  setStage('draw')
+                }}
+              >
                 Keep editing
               </button>
               <button type="button" className="ghost-btn" onClick={startNewDrawing}>
@@ -419,7 +491,7 @@ function FaceWords({
       >
         <span className="face-prompt__tag">{tag}</span>
         <span>{prompt}</span>
-        <span className="face-prompt__hint">Click to type</span>
+        <span className="face-prompt__hint">Tap to type</span>
       </button>
       <div className="face-word-list" role="group" aria-labelledby={`${id}-prompt`}>
         {words.map((value, i) => (
@@ -433,12 +505,19 @@ function FaceWords({
               value={value}
               maxLength={WORD_MAX}
               autoComplete="off"
+              enterKeyHint={i === 2 ? 'done' : 'next'}
               placeholder={`Word ${i + 1}`}
               disabled={disabled}
               onChange={(e) => {
                 const next = [...words] as Words
                 next[i] = e.target.value
                 onChange(next)
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                if (i < 2) document.getElementById(`${id}-word-${i + 1}`)?.focus()
+                else (e.target as HTMLInputElement).blur()
               }}
             />
           </div>
