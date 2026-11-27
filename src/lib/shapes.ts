@@ -50,42 +50,25 @@ export function strokeStar(ctx: CanvasRenderingContext2D, from: Point, to: Point
   ctx.stroke()
 }
 
-/**
- * Thought-cloud / spiraly speech bubble: overlapping lobes with a spiral tail.
- * Fitted into the drag bounding box.
- */
+/** Hollow cloud outline fitted into the drag bounding box. */
 export function strokeCloud(ctx: CanvasRenderingContext2D, from: Point, to: Point) {
   const { x, y, w, h } = normBox(from, to)
   if (w < 2 || h < 2) return
 
-  const bodyH = h * 0.72
-  const bodyY = y
-  const cx = x + w / 2
-  const cy = bodyY + bodyH / 2
-  const rx = w * 0.46
-  const ry = bodyH * 0.42
+  const px = (u: number) => x + w * u
+  const py = (v: number) => y + h * v
 
+  // Single closed silhouette — stroke only, empty interior.
   ctx.beginPath()
-  // Main overlapping cloud lobes
-  ctx.ellipse(cx - rx * 0.35, cy + ry * 0.08, rx * 0.55, ry * 0.72, 0, 0, Math.PI * 2)
-  ctx.ellipse(cx + rx * 0.32, cy + ry * 0.1, rx * 0.52, ry * 0.7, 0, 0, Math.PI * 2)
-  ctx.ellipse(cx, cy - ry * 0.22, rx * 0.62, ry * 0.7, 0, 0, Math.PI * 2)
-  ctx.ellipse(cx - rx * 0.05, cy + ry * 0.18, rx * 0.7, ry * 0.55, 0, 0, Math.PI * 2)
+  ctx.moveTo(px(0.2), py(0.78))
+  ctx.lineTo(px(0.78), py(0.78))
+  ctx.bezierCurveTo(px(0.98), py(0.78), px(1.02), py(0.52), px(0.88), py(0.46))
+  ctx.bezierCurveTo(px(1.02), py(0.32), px(0.92), py(0.12), px(0.72), py(0.2))
+  ctx.bezierCurveTo(px(0.64), py(0.02), px(0.38), py(0.02), px(0.3), py(0.22))
+  ctx.bezierCurveTo(px(0.14), py(0.12), px(0.0), py(0.32), px(0.1), py(0.5))
+  ctx.bezierCurveTo(px(-0.02), py(0.56), px(0.0), py(0.78), px(0.2), py(0.78))
+  ctx.closePath()
   ctx.stroke()
-
-  // Spiraly thought-bubble tail (small circles trailing down-left)
-  const tailX0 = x + w * 0.28
-  const tailY0 = y + bodyH * 0.92
-  const bubbles = [
-    { r: Math.max(2, Math.min(w, h) * 0.07), dx: 0, dy: 0 },
-    { r: Math.max(1.5, Math.min(w, h) * 0.045), dx: -w * 0.08, dy: h * 0.1 },
-    { r: Math.max(1, Math.min(w, h) * 0.028), dx: -w * 0.14, dy: h * 0.18 },
-  ]
-  for (const b of bubbles) {
-    ctx.beginPath()
-    ctx.arc(tailX0 + b.dx, tailY0 + b.dy, b.r, 0, Math.PI * 2)
-    ctx.stroke()
-  }
 }
 
 export function strokeShape(

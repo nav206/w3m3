@@ -127,10 +127,8 @@ function ToolIcon({ tool }: { tool: Tool }) {
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
             {...stroke}
-            d="M7.5 15.5a3.5 3.5 0 0 1-.2-7 4.5 4.5 0 0 1 8.7 1.2 3 3 0 0 1 1.5 5.5H7.8"
+            d="M6.2 17.2h11.2c1.7 0 3-1.3 3-2.9s-1.2-2.8-2.8-2.9A4.2 4.2 0 0 0 10.2 7a3.6 3.6 0 0 0-5.5 3.2A2.9 2.9 0 0 0 6.2 17.2z"
           />
-          <circle cx="8" cy="19" r="1.15" {...stroke} />
-          <circle cx="5.6" cy="21.1" r="0.75" {...stroke} />
         </svg>
       )
   }
