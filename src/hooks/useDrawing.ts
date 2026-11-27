@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { floodFill, hexToRgba } from '../lib/floodFill'
+import { isShapeTool, strokeShape } from '../lib/shapes'
 
-export type Tool = 'pen' | 'eraser' | 'fill' | 'line' | 'rect' | 'ellipse'
+export type Tool = 'pen' | 'eraser' | 'fill' | 'line' | 'rect' | 'ellipse' | 'heart' | 'star' | 'cloud'
 
 type Point = { x: number; y: number }
 
@@ -184,20 +185,7 @@ export function useDrawing(options: Options) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     applyBrush()
     const t = toolRef.current
-    if (t === 'line') {
-      ctx.beginPath()
-      ctx.moveTo(from.x, from.y)
-      ctx.lineTo(to.x, to.y)
-      ctx.stroke()
-    } else if (t === 'rect') {
-      ctx.strokeRect(from.x, from.y, to.x - from.x, to.y - from.y)
-    } else if (t === 'ellipse') {
-      const rx = (to.x - from.x) / 2
-      const ry = (to.y - from.y) / 2
-      ctx.beginPath()
-      ctx.ellipse(from.x + rx, from.y + ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI * 2)
-      ctx.stroke()
-    }
+    if (isShapeTool(t)) strokeShape(ctx, t, from, to)
   }
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -268,7 +256,7 @@ export function useDrawing(options: Options) {
     drawingRef.current = false
     const p = pointerPos(e)
     const t = toolRef.current
-    if ((t === 'line' || t === 'rect' || t === 'ellipse') && startRef.current) {
+    if (isShapeTool(t) && startRef.current) {
       drawShapePreview(startRef.current, p)
       setHasMarks(true)
       announceRef.current?.(`${t} drawn`)
