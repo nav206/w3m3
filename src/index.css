@@ -167,6 +167,73 @@ input {
   cursor: not-allowed;
 }
 
+.tool-btn--menu {
+  position: relative;
+  gap: 0.15rem;
+  padding-right: 0.55rem;
+}
+
+.shapes-caret {
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+  margin-top: 1px;
+  opacity: 0.75;
+}
+
+.shapes-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.shapes-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 11.5rem;
+  padding: 0.35rem;
+  background: #fff;
+  border: 1px solid var(--chrome-2);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
+}
+
+.shapes-option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--black);
+  display: grid;
+  grid-template-columns: 1.4rem 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.35rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.shapes-option svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.shapes-option:hover,
+.shapes-option[aria-checked='true'] {
+  background: #111;
+  color: #fff;
+}
+
 .swatches {
   display: flex;
   flex-wrap: wrap;

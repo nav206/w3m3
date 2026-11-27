@@ -1,17 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PALETTE, SIZE_PRESETS } from './lib/colors'
+import { isMenuShapeTool } from './lib/shapes'
 import { useDrawing, type Tool } from './hooks/useDrawing'
 
 const WORD_MAX = 24
 
-const TOOLS: { id: Tool; label: string; shortcut: string }[] = [
+const PRIMARY_TOOLS: { id: Tool; label: string; shortcut: string }[] = [
   { id: 'pen', label: 'Pen', shortcut: 'B' },
   { id: 'eraser', label: 'Eraser', shortcut: 'E' },
   { id: 'fill', label: 'Fill', shortcut: 'G' },
   { id: 'line', label: 'Line', shortcut: 'L' },
-  { id: 'rect', label: 'Rect', shortcut: 'R' },
-  { id: 'ellipse', label: 'Oval', shortcut: 'O' },
 ]
+
+const SHAPE_TOOLS: { id: Tool; label: string; shortcut: string }[] = [
+  { id: 'rect', label: 'Rectangle', shortcut: 'R' },
+  { id: 'ellipse', label: 'Oval', shortcut: 'O' },
+  { id: 'heart', label: 'Heart', shortcut: 'H' },
+  { id: 'star', label: 'Star', shortcut: 'S' },
+  { id: 'cloud', label: 'Cloud', shortcut: 'C' },
+]
+
+const ALL_TOOLS = [...PRIMARY_TOOLS, ...SHAPE_TOOLS]
 
 type Words = [string, string, string]
 
@@ -23,51 +32,105 @@ function filledCount(words: Words) {
   return words.filter((w) => w.trim().length > 0).length
 }
 
+const stroke = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+}
+
+/** Paint-bucket / pour-can icon (MS Paint–style fill). */
+function FillBucketIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        {...stroke}
+        d="M4.5 11.5l7-7 7.5 7.5-4.2 4.2a3 3 0 0 1-4.2 0L4.5 11.5z"
+      />
+      <path {...stroke} d="M9.2 6.8l2.8-2.8 1.6 1.6" />
+      <path
+        {...stroke}
+        d="M14.8 16.2c.9 1.4 2.4 2.3 4 2.3.2-1.7-.6-3.3-1.9-4.2"
+      />
+      <path {...stroke} d="M18.6 19.8c.15.9-.2 1.7-1 1.7-.7 0-1.2-.7-1.1-1.5" />
+    </svg>
+  )
+}
+
+/** Menu mark: rect + triangle + circle clustered. */
+function ShapesMenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2.5" y="3.5" width="8" height="7" {...stroke} />
+      <path {...stroke} d="M13.5 10.5L17.5 3.5 21.5 10.5z" />
+      <circle cx="8.5" cy="17.5" r="4" {...stroke} />
+    </svg>
+  )
+}
+
 function ToolIcon({ tool }: { tool: Tool }) {
-  const common = {
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.75,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  }
   switch (tool) {
     case 'pen':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path {...common} d="M4 20l4.5-1.2L19 8.3 15.7 5 5.2 15.5 4 20z" />
+          <path {...stroke} d="M4 20l4.5-1.2L19 8.3 15.7 5 5.2 15.5 4 20z" />
         </svg>
       )
     case 'eraser':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path {...common} d="M7 17l-3-3 8-8 6 6-8 8H7z" />
-          <path {...common} d="M4 20h16" />
+          <path {...stroke} d="M7 17l-3-3 8-8 6 6-8 8H7z" />
+          <path {...stroke} d="M4 20h16" />
         </svg>
       )
     case 'fill':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path {...common} d="M7 14l5-9 5 9H7z" />
-          <path {...common} d="M6 18h12" />
-        </svg>
-      )
+      return <FillBucketIcon />
     case 'line':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path {...common} d="M5 19L19 5" />
+          <path {...stroke} d="M5 19L19 5" />
         </svg>
       )
     case 'rect':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="5" y="6" width="14" height="12" {...common} />
+          <rect x="5" y="6" width="14" height="12" {...stroke} />
         </svg>
       )
     case 'ellipse':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <ellipse cx="12" cy="12" rx="8" ry="6" {...common} />
+          <ellipse cx="12" cy="12" rx="8" ry="6" {...stroke} />
+        </svg>
+      )
+    case 'heart':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            {...stroke}
+            d="M12 20s-7-4.4-7-9.2C5 7.5 7.2 5.5 9.4 5.5c1.3 0 2.4.7 2.6 1.7.2-1 1.3-1.7 2.6-1.7 2.2 0 4.4 2 4.4 5.3C19 15.6 12 20 12 20z"
+          />
+        </svg>
+      )
+    case 'star':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            {...stroke}
+            d="M12 3.5l2.2 4.6 5.1.7-3.7 3.6.9 5.1L12 15.6 7.5 17.5l.9-5.1L4.7 8.8l5.1-.7L12 3.5z"
+          />
+        </svg>
+      )
+    case 'cloud':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            {...stroke}
+            d="M7.5 15.5a3.5 3.5 0 0 1-.2-7 4.5 4.5 0 0 1 8.7 1.2 3 3 0 0 1 1.5 5.5H7.8"
+          />
+          <circle cx="8" cy="19" r="1.15" {...stroke} />
+          <circle cx="5.6" cy="21.1" r="0.75" {...stroke} />
         </svg>
       )
   }
@@ -82,9 +145,12 @@ export default function App() {
   const [status, setStatus] = useState('Pen selected.')
   const [nudgeWords, setNudgeWords] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [shapesOpen, setShapesOpen] = useState(false)
+  const shapesMenuRef = useRef<HTMLDivElement>(null)
 
   const announce = useCallback((msg: string) => setStatus(msg), [])
   const drawing = useDrawing({ tool, color, size, onAnnounce: announce })
+  const shapeActive = isMenuShapeTool(tool)
 
   const frontReady = filledCount(frontWords) === 3
   const backReady = filledCount(backWords) === 3
@@ -95,6 +161,22 @@ export default function App() {
     const t = window.setTimeout(() => setNudgeWords(true), 1200)
     return () => window.clearTimeout(t)
   }, [drawing.hasMarks, frontReady])
+
+  useEffect(() => {
+    if (!shapesOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (!shapesMenuRef.current?.contains(e.target as Node)) setShapesOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShapesOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [shapesOpen])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -122,10 +204,14 @@ export default function App() {
         l: 'line',
         r: 'rect',
         o: 'ellipse',
+        h: 'heart',
+        s: 'star',
+        c: 'cloud',
       }
       if (map[key]) {
         setTool(map[key])
-        announce(`${TOOLS.find((t) => t.id === map[key])?.label} selected`)
+        setShapesOpen(false)
+        announce(`${ALL_TOOLS.find((t) => t.id === map[key])?.label} selected`)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -171,7 +257,7 @@ export default function App() {
 
           <div className="toolbar" role="toolbar" aria-label="Drawing tools">
             <div className="tool-group" role="group" aria-label="Tools">
-              {TOOLS.map((t) => (
+              {PRIMARY_TOOLS.map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -182,6 +268,7 @@ export default function App() {
                   disabled={submitted}
                   onClick={() => {
                     setTool(t.id)
+                    setShapesOpen(false)
                     announce(`${t.label} selected`)
                   }}
                 >
@@ -189,6 +276,46 @@ export default function App() {
                   <span className="sr-only">{t.label}</span>
                 </button>
               ))}
+
+              <div className="shapes-menu" ref={shapesMenuRef}>
+                <button
+                  type="button"
+                  className="tool-btn tool-btn--menu"
+                  aria-pressed={shapeActive}
+                  aria-expanded={shapesOpen}
+                  aria-haspopup="menu"
+                  aria-label="Shapes"
+                  title="Shapes"
+                  disabled={submitted}
+                  onClick={() => setShapesOpen((open) => !open)}
+                >
+                  {shapeActive ? <ToolIcon tool={tool} /> : <ShapesMenuIcon />}
+                  <span className="shapes-caret" aria-hidden="true" />
+                  <span className="sr-only">Shapes</span>
+                </button>
+                {shapesOpen && (
+                  <div className="shapes-popover" role="menu" aria-label="Shape tools">
+                    {SHAPE_TOOLS.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="menuitemradio"
+                        className="shapes-option"
+                        aria-checked={tool === t.id}
+                        title={`${t.label} (${t.shortcut})`}
+                        onClick={() => {
+                          setTool(t.id)
+                          setShapesOpen(false)
+                          announce(`${t.label} selected`)
+                        }}
+                      >
+                        <ToolIcon tool={t.id} />
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="tool-group" role="group" aria-label="Brush size">
